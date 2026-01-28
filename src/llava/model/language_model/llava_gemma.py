@@ -110,7 +110,7 @@ class LlavaGemmaForCausalLM(Gemma2ForCausalLM, LlavaMetaForCausalLM):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
-            logits_to_keep=logits_to_keep
+            # logits_to_keep=logits_to_keep
         )
 
     @torch.no_grad()

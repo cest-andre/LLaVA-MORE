@@ -986,6 +986,7 @@ def preprocess_gemma_2(
 
     # Mask targets
     sep = 'model\n'
+    conv.tokenizer.add_special_tokens({'additional_special_tokens': ['<start_of_turn>', '<end_of_turn>']})
     sep_split_conversation = conv.tokenizer.additional_special_tokens[1]+'\n'
     for conversation, target in zip(conversations, targets):
         total_len = int(target.shape[0])
@@ -1131,6 +1132,10 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         list_data_dict = json.load(open(data_path, "r"))
 
+        # for sample in list_data_dict:
+        #     if 'image' in sample.keys():
+        #         del sample['image']
+
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
@@ -1166,7 +1171,11 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            try:
+                image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            except:
+                print('IMAGE NOT FOUND')
+                return None
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
@@ -1232,7 +1241,13 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances]
+        not_none_idx = 0
+        for i in range(len(instances)):
+            if instances[i] is not None:
+                not_none_idx = i
+                break
+
+        input_ids, labels = tuple([instance[key] for instance in instances if instance is not None]
                                   for key in ("input_ids", "labels"))
         input_ids = torch.nn.utils.rnn.pad_sequence(
             input_ids,
@@ -1249,9 +1264,9 @@ class DataCollatorForSupervisedDataset(object):
             attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
         )
 
-        if 'image' in instances[0]:
-            images = [instance['image'] for instance in instances]
-            if all(x is not None and x.shape == images[0].shape for x in images):
+        if 'image' in instances[not_none_idx]:
+            images = [instance['image'] for instance in instances if instance is not None]
+            if all(x is not None and x.shape == images[not_none_idx].shape for x in images):
                 batch['images'] = torch.stack(images)
             else:
                 batch['images'] = images
@@ -1302,11 +1317,12 @@ def train(attn_implementation=None):
     if model_args.vision_tower is not None:
         model = get_model(model_args, attn_implementation, training_args, bnb_model_from_pretrained_args)
     else:
-        model = transformers.LlamaForCausalLM.from_pretrained(
+        model = transformers.AutoModelForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
-            attn_implementation=attn_implementation,
+            attn_implementation='eager',
             torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+            token=os.environ('HF_TOKEN'),
             **bnb_model_from_pretrained_args
         )
     model.config.use_cache = False
