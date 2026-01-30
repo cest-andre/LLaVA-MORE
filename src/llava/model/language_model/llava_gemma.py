@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 
-from transformers import AutoConfig, AutoModelForCausalLM, Gemma2Model, Gemma2Config, Gemma2ForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, Gemma3TextModel, Gemma3TextConfig, Gemma3ForCausalLM
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.generation.utils import GenerateOutput
@@ -30,22 +30,22 @@ from ..llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
 def is_debug():
     return int(os.environ.get('DEBUG', 0))
 
-class LlavaGemmaConfig(Gemma2Config):
+class LlavaGemmaConfig(Gemma3TextConfig):
     model_type = "llava_gemma"
 
 
-class LlavaGemmaModel(LlavaMetaModel, Gemma2Model):
+class LlavaGemmaModel(LlavaMetaModel, Gemma3TextModel):
     config_class = LlavaGemmaConfig
 
-    def __init__(self, config: Gemma2Config):
+    def __init__(self, config: Gemma3TextConfig):
         super(LlavaGemmaModel, self).__init__(config)
 
 
-class LlavaGemmaForCausalLM(Gemma2ForCausalLM, LlavaMetaForCausalLM):
+class LlavaGemmaForCausalLM(Gemma3ForCausalLM, LlavaMetaForCausalLM):
     config_class = LlavaGemmaConfig
 
     def __init__(self, config):
-        super(Gemma2ForCausalLM, self).__init__(config)
+        super(Gemma3ForCausalLM, self).__init__(config)
         if is_debug():
             n_layers = 0
             config.num_hidden_layers = n_layers

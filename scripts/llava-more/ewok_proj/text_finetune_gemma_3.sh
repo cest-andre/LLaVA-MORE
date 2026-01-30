@@ -20,41 +20,36 @@
 
 epochs=1
 llama3_path=google/gemma-3-1b-it # this variable indicate the path of the used language model
-images_path=/home/alongon/data/ewok/images
-data_train_path=/home/alongon/data/ewok/blip_laion_cc_sbu_558k.json
-vision_tower=openai/clip-vit-large-patch14-336
+# images_path=local/path
+data_train_path=/home/alongon/data/ewok/llava_v1_5_mix665k.json
+# vision_tower=local/path
+# mm_projector_path=local/path
 
 # job_name="your/job/name"
 # nnodes=<number_of_nodes>
 # echo "job name: $job_name"
 export TOKENIZER_PATH=$llama3_path
-# export LD_LIBRARY_PATH=`python -c 'import os; import nvidia.cublas.lib; import nvidia.cudnn.lib; print(os.path.dirname(nvidia.cublas.lib.__file__) + ":" + os.path.dirname(nvidia.cudnn.lib.__file__))'`
 
+# export CUDA_VISIBLE_DEVICES=1,2,4,5,6,7
 torchrun \
 --nnodes=1 --nproc-per-node=8 \
 ./src/llava/train/train_mem.py \
 --model_name_or_path $llama3_path \
 --model_architecture gemma_2 \
---version plain \
+--version gemma_2 \
 --data_path $data_train_path \
---image_folder $images_path \
---vision_tower $vision_tower \
---mm_projector_type mlp2x_gelu \
---tune_mm_mlp_adapter True \
---mm_vision_select_layer -2 \
---mm_use_im_start_end False \
---mm_use_im_patch_token False \
+--group_by_modality_length True \
 --bf16 True \
---output_dir /home/alongon/model_weights/ewok/gemma3_1b_llava/projector \
+--output_dir /home/alongon/model_weights/ewok/gemma3_1b_llava/text_finetune \
 --num_train_epochs $epochs \
---per_device_train_batch_size 16 \
+--per_device_train_batch_size 4 \
 --per_device_eval_batch_size 4 \
 --gradient_accumulation_steps 1 \
 --evaluation_strategy no \
 --save_strategy steps \
---save_steps 1000 \
+--save_steps 5000 \
 --save_total_limit 2 \
---learning_rate 1e-3 \
+--learning_rate 2e-5 \
 --weight_decay 0. \
 --warmup_ratio 0.03 \
 --lr_scheduler_type cosine \

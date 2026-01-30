@@ -1132,9 +1132,11 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         list_data_dict = json.load(open(data_path, "r"))
 
-        # for sample in list_data_dict:
-        #     if 'image' in sample.keys():
-        #         del sample['image']
+        #   If no vision tower, remove images from dataset for text-only finetuning.
+        if model_args.vision_tower is None:
+            for sample in list_data_dict:
+                if 'image' in sample.keys():
+                    del sample['image']
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -1287,6 +1289,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
 
 
 def train(attn_implementation=None):
+    attn_implementation = 'eager'
     global local_rank
 
     parser = transformers.HfArgumentParser(
@@ -1317,12 +1320,12 @@ def train(attn_implementation=None):
     if model_args.vision_tower is not None:
         model = get_model(model_args, attn_implementation, training_args, bnb_model_from_pretrained_args)
     else:
-        model = transformers.AutoModelForCausalLM.from_pretrained(
+        model = transformers.Gemma3ForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
-            attn_implementation='eager',
+            attn_implementation=attn_implementation,
             torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-            token=os.environ('HF_TOKEN'),
+            token=os.environ['HF_TOKEN'],
             **bnb_model_from_pretrained_args
         )
     model.config.use_cache = False
