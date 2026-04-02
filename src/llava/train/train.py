@@ -71,7 +71,7 @@ class ModelArguments:
     siglip: bool = field(default=False)
     model_architecture: Optional[str] = field(default="gemma_2",
                                           metadata={"help": "Define the LLaVA architecture of the model.",
-                                            "choices": ["gemma_2", "phi_4", "llama_3_1", "llama_3", "mpt", "None"]
+                                            "choices": ["gemma_2", "phi_4", "llama_3_1", "llama_3", 'llama_2', "mpt", "None"]
                                         })
 
 
@@ -79,6 +79,7 @@ class ModelArguments:
 class DataArguments:
     data_path: str = field(default=None,
                            metadata={"help": "Path to the training data."})
+    text_path: Optional[str] = field(default=None)
     lazy_preprocess: bool = False
     is_multimodal: bool = False
     image_folder: Optional[str] = field(default=None)
@@ -943,7 +944,7 @@ def preprocess_phi_4(
     
     
 def preprocess_gemma_2(
-        sources,
+    sources,
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
 ) -> Dict:
@@ -1034,7 +1035,6 @@ def preprocess_gemma_2(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored)"
                 )
-
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -1133,10 +1133,21 @@ class LazySupervisedDataset(Dataset):
         list_data_dict = json.load(open(data_path, "r"))
 
         #   If no vision tower, remove images from dataset for text-only finetuning.
-        if model_args.vision_tower is None:
+        if model_args.vision_tower is None and data_args.text_path is not None:
+            with open(data_args.text_path, 'r') as json_file:
+                text_data = json.load(json_file)
+
+            context = 'You are provided with a text description of an image. The description consists of several brief captions of the image contents. This might ' +\
+                      'also be followed by bounding box coordinates for some important objects in the image. You will be asked a series of questions about the image. ' +\
+                      'Use the description to answer the questions.\n'
             for sample in list_data_dict:
                 if 'image' in sample.keys():
+                    #   before deleting image field, use it to index the COCO text data.
+                    llava_text = context + text_data[sample['image']] + '\n'
+                    sample['conversations'][0]['value'] = sample['conversations'][0]['value'].replace('<image>', '').replace('\n', '')
                     del sample['image']
+
+                    sample['conversations'][0]['value'] = llava_text + '\n' + sample['conversations'][0]['value']
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -1213,6 +1224,7 @@ class LazySupervisedDataset(Dataset):
                 self.data_args)
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
+
         data_dict = preprocess(
             sources,
             self.tokenizer,
@@ -1251,6 +1263,7 @@ class DataCollatorForSupervisedDataset(object):
 
         input_ids, labels = tuple([instance[key] for instance in instances if instance is not None]
                                   for key in ("input_ids", "labels"))
+
         input_ids = torch.nn.utils.rnn.pad_sequence(
             input_ids,
             batch_first=True,
@@ -1295,6 +1308,7 @@ def train(attn_implementation=None):
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
     local_rank = training_args.local_rank
     compute_dtype = (torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
 
@@ -1303,12 +1317,12 @@ def train(attn_implementation=None):
         from transformers import BitsAndBytesConfig
         bnb_model_from_pretrained_args.update(dict(
             device_map={"": training_args.device},
-            load_in_4bit=training_args.bits == 4,
-            load_in_8bit=training_args.bits == 8,
+            # load_in_4bit=training_args.bits == 4,
+            # load_in_8bit=training_args.bits == 8,
             quantization_config=BitsAndBytesConfig(
                 load_in_4bit=training_args.bits == 4,
                 load_in_8bit=training_args.bits == 8,
-                llm_int8_skip_modules=["mm_projector"],
+                llm_int8_skip_modules=["mm_projector", "lm_head"],
                 llm_int8_threshold=6.0,
                 llm_int8_has_fp16_weight=False,
                 bnb_4bit_compute_dtype=compute_dtype,
@@ -1320,12 +1334,11 @@ def train(attn_implementation=None):
     if model_args.vision_tower is not None:
         model = get_model(model_args, attn_implementation, training_args, bnb_model_from_pretrained_args)
     else:
-        model = transformers.Gemma3ForCausalLM.from_pretrained(
+        model = transformers.AutoModelForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             attn_implementation=attn_implementation,
             torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-            token=os.environ['HF_TOKEN'],
             **bnb_model_from_pretrained_args
         )
     model.config.use_cache = False

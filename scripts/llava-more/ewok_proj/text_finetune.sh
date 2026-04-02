@@ -19,36 +19,38 @@
 # echo "MASTER PORT: ${MASTER_PORT}"
 
 epochs=1
-llama3_path=google/gemma-3-1b-it # this variable indicate the path of the used language model
+model_path=meta-llama/Llama-2-13b-chat-hf # this variable indicate the path of the used language model
 # images_path=local/path
-data_train_path=/home/alongon/data/ewok/llava_v1_5_mix665k.json
+data_train_path=/home/alongon/data/ewok/llava_instruct_80k.json
+train_text_path=/home/alongon/data/ewok/llava_instruct_80k_text.json
+output_dir=/home/alongon/model_weights/ewok/spoof
 # vision_tower=local/path
 # mm_projector_path=local/path
 
 # job_name="your/job/name"
 # nnodes=<number_of_nodes>
 # echo "job name: $job_name"
-export TOKENIZER_PATH=$llama3_path
+export TOKENIZER_PATH=$model_path
 
-# export CUDA_VISIBLE_DEVICES=1,2,4,5,6,7
 torchrun \
 --nnodes=1 --nproc-per-node=8 \
 ./src/llava/train/train_mem.py \
---model_name_or_path $llama3_path \
---model_architecture gemma_2 \
---version gemma_2 \
+--model_name_or_path $model_path \
+--model_architecture llama_2 \
+--version llama_2 \
 --data_path $data_train_path \
+--text_path $train_text_path \
 --group_by_modality_length True \
 --bf16 True \
---output_dir /home/alongon/model_weights/ewok/gemma3_1b_llava/text_finetune \
+--output_dir $output_dir \
 --num_train_epochs $epochs \
---per_device_train_batch_size 4 \
+--per_device_train_batch_size 1 \
 --per_device_eval_batch_size 4 \
 --gradient_accumulation_steps 1 \
 --evaluation_strategy no \
 --save_strategy steps \
---save_steps 5000 \
---save_total_limit 2 \
+--save_steps 50000 \
+--save_total_limit 1 \
 --learning_rate 2e-5 \
 --weight_decay 0. \
 --warmup_ratio 0.03 \
@@ -57,6 +59,6 @@ torchrun \
 --tf32 True \
 --model_max_length 2048 \
 --gradient_checkpointing True \
---dataloader_num_workers 8 \
+--dataloader_num_workers 4 \
 --lazy_preprocess True \
 --report_to none

@@ -19,7 +19,7 @@
 # echo "MASTER PORT: ${MASTER_PORT}"
 
 epochs=1
-llama3_path=google/gemma-3-1b-it # this variable indicate the path of the used language model
+llama3_path=google/gemma-2-9b-it # this variable indicate the path of the used language model
 images_path=/home/alongon/data/ewok/images
 data_train_path=/home/alongon/data/ewok/blip_laion_cc_sbu_558k.json
 vision_tower=openai/clip-vit-large-patch14-336
@@ -45,9 +45,9 @@ torchrun \
 --mm_use_im_start_end False \
 --mm_use_im_patch_token False \
 --bf16 True \
---output_dir /home/alongon/model_weights/ewok/gemma3_1b_llava/projector \
+--output_dir /home/alongon/model_weights/ewok/gemma2_9b_lora_llava/projector \
 --num_train_epochs $epochs \
---per_device_train_batch_size 16 \
+--per_device_train_batch_size 8 \
 --per_device_eval_batch_size 4 \
 --gradient_accumulation_steps 1 \
 --evaluation_strategy no \

@@ -19,7 +19,7 @@
 # echo "MASTER PORT: ${MASTER_PORT}"
 
 epochs=1
-llama3_path=google/gemma-3-1b-it # this variable indicate the path of the used language model
+model_path=google/gemma-2-2b-it # this variable indicate the path of the used language model
 # images_path=local/path
 data_train_path=/home/alongon/data/ewok/llava_v1_5_mix665k.json
 # vision_tower=local/path
@@ -28,13 +28,13 @@ data_train_path=/home/alongon/data/ewok/llava_v1_5_mix665k.json
 # job_name="your/job/name"
 # nnodes=<number_of_nodes>
 # echo "job name: $job_name"
-export TOKENIZER_PATH=$llama3_path
+export TOKENIZER_PATH=$model_path
 
 # export CUDA_VISIBLE_DEVICES=1,2,4,5,6,7
 torchrun \
---nnodes=1 --nproc-per-node=6 \
+--nnodes=1 --nproc-per-node=1 \
 ./src/llava/train/train_mem.py \
---model_name_or_path $llama3_path \
+--model_name_or_path $model_path \
 --model_architecture gemma_2 \
 --version gemma_2 \
 --data_path $data_train_path \

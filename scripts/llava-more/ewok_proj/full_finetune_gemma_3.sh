@@ -19,11 +19,11 @@
 # echo "MASTER PORT: ${MASTER_PORT}"
 
 epochs=1
-llama3_path=google/gemma-3-1b-it # this variable indicate the path of the used language model
+llama3_path=google/gemma-2-9b-it # this variable indicate the path of the used language model
 images_path=/home/alongon/data/ewok/finetune_images
 data_train_path=/home/alongon/data/ewok/llava_v1_5_mix665k.json
 vision_tower=openai/clip-vit-large-patch14-336
-mm_projector_path=/home/alongon/model_weights/ewok/gemma3_1b_llava/projector/checkpoint-4361/mm_projector.bin
+mm_projector_path=/home/alongon/model_weights/ewok/gemma2_9b_lora_llava/projector/checkpoint-8721/mm_projector.bin
 
 # job_name="your/job/name"
 # nnodes=<number_of_nodes>
@@ -36,6 +36,10 @@ torchrun \
 ./src/llava/train/train_mem.py \
 --model_name_or_path $llama3_path \
 --model_architecture gemma_2 \
+--lora_enable True \
+--bits 4 \
+--lora_r 8 \
+--lora_alpha 2 \
 --version gemma_2 \
 --data_path $data_train_path \
 --image_folder $images_path \
@@ -48,7 +52,7 @@ torchrun \
 --image_aspect_ratio pad \
 --group_by_modality_length True \
 --bf16 True \
---output_dir /home/alongon/model_weights/ewok/gemma3_1b_llava/full_finetune \
+--output_dir /home/alongon/model_weights/ewok/gemma2_9b_lora_llava/full_finetune \
 --num_train_epochs $epochs \
 --per_device_train_batch_size 4 \
 --per_device_eval_batch_size 4 \
